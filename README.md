@@ -39,7 +39,7 @@ AIGC:
 
 ```bash
 # 克隆项目
-git clone https://github.com/your-repo/netwatch.git
+git clone https://github.com/Collins-Woo/netwatch.git
 cd netwatch
 
 # 配置环境变量
@@ -117,7 +117,7 @@ NODE_ENV=production
 
 ```bash
 # 方式一：使用安装脚本（Linux）
-curl -LO https://raw.githubusercontent.com/your-repo/netwatch/main/backend/src/agent/agent-init.sh
+curl -LO https://raw.githubusercontent.com/Collins-Woo/netwatch/main/backend/src/agent/agent-init.sh
 chmod +x agent-init.sh
 sudo ./agent-init.sh
 
@@ -297,5 +297,5 @@ MIT License
 
 ## 联系方式
 
-- 文档: https://github.com/your-repo/netwatch/wiki
-- 问题反馈: https://github.com/your-repo/netwatch/issues
+- 文档: https://github.com/Collins-Woo/netwatch/wiki
+- 问题反馈: https://github.com/Collins-Woo/netwatch/issues
