@@ -1,0 +1,18 @@
+{
+  "name": "netwatch-agent",
+  "version": "1.0.0",
+  "description": "NetWatch Monitoring Agent - supports HTTP/HTTPS, API, Ping, TCP, DNS, SSL, Traceroute, MySQL, Redis",
+  "type": "module",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js",
+    "dev": "node --watch agent.js"
+  },
+  "dependencies": {
+    "mysql2": "^3.6.5",
+    "redis": "^4.6.12"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

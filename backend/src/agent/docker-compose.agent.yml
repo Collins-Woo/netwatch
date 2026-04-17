@@ -1,0 +1,27 @@
+# NetWatch Agent Docker Compose Example
+# 使用此文件在服务器上快速部署Agent节点
+
+version: '3.8'
+
+services:
+  netwatch-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    container_name: netwatch-agent
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      # 中心服务器地址
+      - CENTER_SERVER=http://your-server-ip:3000
+      # 注册密钥（从Web界面获取）
+      - REGISTER_KEY=sk_your_register_key_here
+    # 如果需要持久化日志
+    # volumes:
+    #   - ./logs:/app/logs
+    # 网络模式（host模式可以直接访问宿主机网络）
+    network_mode: host
+    # 或者使用bridge模式并映射端口
+    # ports:
+    #   - "3001:3001"
+    # network_mode: bridge

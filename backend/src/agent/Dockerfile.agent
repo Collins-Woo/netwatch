@@ -1,0 +1,31 @@
+# NetWatch Agent Dockerfile
+# 用于在服务器上部署监控Agent节点
+
+FROM node:20-alpine
+
+LABEL maintainer="NetWatch"
+LABEL description="NetWatch Monitoring Agent"
+
+WORKDIR /app
+
+# 安装必要的系统工具
+RUN apk add --no-cache curl bash iputils bind-tools mysql-client redis
+
+# 安装Node.js依赖
+COPY package*.json ./
+RUN npm ci --only=production
+
+# 复制Agent代码
+COPY agent.js ./
+
+# 创建非root用户
+RUN addgroup -g 1001 -S netwatch && \
+    adduser -S netwatch -u 1001
+USER netwatch
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+  CMD ps aux | grep -v grep | grep agent.js || exit 1
+
+# 启动命令
+CMD ["node", "agent.js"]
