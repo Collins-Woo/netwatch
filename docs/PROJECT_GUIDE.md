@@ -277,16 +277,218 @@ sudo certbot renew --dry-run
 
 ## 配置说明
 
+### 数据库配置
+
+NetWatch 支持多种数据库方案，可根据实际需求选择：
+
+#### 数据库方案对比
+
+| 方案 | 适用场景 | 依赖 | 数据持久化 | 并发支持 | 推荐度 |
+|------|----------|------|------------|----------|--------|
+| **Mock API** | 前端Demo演示 | 无 | ❌ | ❌ | ⭐⭐⭐⭐⭐ |
+| **JSON文件** | 单机部署/低资源 | 无 | ✅ | 中 | ⭐⭐⭐⭐ |
+| **SQLite** | 轻量生产环境 | better-sqlite3 | ✅ | 中 | ⭐⭐⭐⭐ |
+| **Supabase** | 团队协作/生产环境 | PostgreSQL | ✅ | 高 | ⭐⭐⭐⭐⭐ |
+
+#### 1. Mock API 模式（默认 - 前端Demo）
+
+前端默认使用 Mock 数据，无需配置任何后端即可运行演示。
+
+```bash
+# 直接启动前端（无需后端）
+npm run dev
+```
+
+**特点：**
+- ✅ 零配置，即开即用
+- ✅ 所有功能可预览
+- ❌ 数据不持久化（刷新页面重置）
+- ❌ 不支持多用户协作
+
+#### 2. JSON 文件模式（轻量级 - 零依赖）
+
+使用本地 JSON 文件存储数据，无需安装数据库。
+
+```bash
+# 启动轻量版后端
+cd backend
+npm install
+node src/server-json.js
+
+# 或使用 npm script
+npm run start:lite
+```
+
+**特点：**
+- ✅ 完全零依赖
+- ✅ 数据本地持久化
+- ✅ 适合单机部署
+- ❌ 并发写入需加锁
+- ❌ 不适合高并发场景
+
+**数据目录结构：**
+```
+backend/data/
+├── tasks.json      # 监控任务
+├── nodes.json      # 监控节点
+├── alerts.json     # 告警记录
+└── users.json      # 用户数据
+```
+
+**配置环境变量：**
+```bash
+DATA_DIR=/opt/netwatch/data  # 数据存储目录
+PORT=3000                     # 服务端口
+```
+
+#### 3. SQLite 模式（轻量生产）
+
+使用 SQLite 数据库，适合小型生产环境。
+
+```bash
+# 安装 SQLite 依赖
+cd backend
+npm install better-sqlite3
+
+# 初始化数据库
+node src/db/migrate.js
+
+# 启动服务
+npm run start:sqlite
+```
+
+**特点：**
+- ✅ 单文件数据库，易于备份
+- ✅ 支持事务和数据完整性
+- ✅ 比 JSON 文件性能更好
+- ⚠️ 需要编译原生模块
+- ⚠️ 并发写入有锁竞争
+
+**数据库文件：**
+```
+backend/data/netwatch.db
+```
+
+#### 4. Supabase 模式（云数据库 - 生产推荐）
+
+使用 Supabase (PostgreSQL) 云数据库，适合团队协作和大规模部署。
+
+```bash
+# 1. 创建 Supabase 项目
+# - 访问 https://supabase.com
+# - 创建新项目
+# - 等待数据库就绪
+
+# 2. 配置环境变量
+cd backend
+cat > .env << 'EOF'
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+EOF
+
+# 3. 初始化数据库表
+# - 在 Supabase 控制台的 SQL Editor 中执行
+# - 或使用 psql 工具连接后执行 backend/supabase/schema.sql
+
+# 4. 启动服务
+npm start
+```
+
+**特点：**
+- ✅ 完全托管，零运维
+- ✅ 支持实时订阅
+- ✅ 高并发，高可用
+- ✅ 自动备份
+- ✅ 团队协作友好
+- ⚠️ 依赖网络连接
+- ⚠️ 有用量限制（免费版）
+
+**数据库 Schema：**
+```sql
+-- 主要数据表
+CREATE TABLE tasks;      -- 监控任务
+CREATE TABLE nodes;     -- 监控节点
+CREATE TABLE alerts;    -- 告警记录
+CREATE TABLE users;     -- 用户管理
+CREATE TABLE audit_logs; -- 操作日志
+CREATE TABLE user_sessions; -- 会话管理
+```
+
+#### 数据库切换方法
+
+**切换前端数据源：**
+
+编辑 `src/services/index.ts`：
+
+```typescript
+// 使用 Mock API（默认）
+const useMockApi = true;
+
+// 或使用真实后端 API
+const useMockApi = false;
+
+// 设置 API 地址
+const API_BASE_URL = 'http://your-server:3000/api';
+```
+
+构建时指定：
+```bash
+# 使用 Mock 数据
+VITE_USE_MOCK_API=true npm run build
+
+# 使用后端 API
+VITE_API_URL=http://your-server:3000/api VITE_USE_MOCK_API=false npm run build
+```
+
+**切换后端数据库：**
+
+```bash
+# 使用 Supabase（默认）
+npm start
+
+# 使用 SQLite
+npm run start:sqlite
+
+# 使用 JSON 文件
+npm run start:lite
+```
+
+#### 备份与恢复
+
+**JSON 文件备份：**
+```bash
+# 备份
+tar -czvf backup-$(date +%Y%m%d).tar.gz data/
+
+# 恢复
+tar -xzf backup-20240101.tar.gz
+```
+
+**SQLite 备份：**
+```bash
+# 备份
+cp data/netwatch.db backup-$(date +%Y%m%d).db
+
+# 恢复
+cp backup-20240101.db data/netwatch.db
+```
+
+**Supabase 备份：**
+- 使用 Supabase 控制台的 Point-in-time Recovery
+- 或导出 SQL 文件
+
 ### 环境变量
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `SUPABASE_URL` | Supabase 项目 URL | - |
-| `SUPABASE_ANON_KEY` | Supabase 匿名密钥 | - |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase 服务密钥 | - |
-| `PORT` | 后端服务端口 | 3000 |
-| `NODE_ENV` | 运行环境 | development |
-| `DATA_DIR` | JSON 数据库目录 | ./data |
+| 变量 | 说明 | 默认值 | 适用方案 |
+|------|------|--------|----------|
+| `SUPABASE_URL` | Supabase 项目 URL | - | Supabase |
+| `SUPABASE_ANON_KEY` | Supabase 匿名密钥 | - | Supabase |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase 服务密钥 | - | Supabase |
+| `PORT` | 后端服务端口 | 3000 | 所有 |
+| `NODE_ENV` | 运行环境 | development | 所有 |
+| `DATA_DIR` | JSON 数据库目录 | ./data | JSON |
+| `VITE_API_URL` | 前端 API 地址 | /api | 后端连接 |
 
 ### 前端配置
 
