@@ -1,4 +1,6 @@
 // API Configuration
+// 默认使用相对路径，通过 Nginx 代理转发到后端
+// 如果设置了 VITE_API_URL，则直接连接指定的后端地址
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 async function fetchApi(endpoint: string, options: RequestInit = {}) {

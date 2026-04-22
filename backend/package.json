@@ -1,19 +1,14 @@
 {
   "name": "netwatch-backend",
   "version": "1.1.0",
-  "description": "NetWatch Monitoring Platform Backend API - 支持WebSocket实时通信和JWT认证",
+  "description": "NetWatch Monitoring Platform Backend API - 默认使用JSON文件存储，支持WebSocket和JWT认证",
   "type": "module",
-  "main": "src/server.js",
+  "main": "src/server-json.js",
   "scripts": {
-    "start": "node src/server.js",
+    "start": "node src/server-json.js",
     "start:ws": "node src/server-websocket.js",
-    "start:lite": "node src/server-json.js",
-    "dev": "node --watch src/server.js",
-    "dev:ws": "node --watch src/server-websocket.js",
-    "dev:lite": "node --watch src/server-json.js",
-    "db:migrate": "node src/db/migrate.js",
-    "db:seed": "node src/db/seed.js",
-    "db:seed:lite": "node src/config/database-json.js"
+    "dev": "node --watch src/server-json.js",
+    "db:seed": "node src/config/database-json.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

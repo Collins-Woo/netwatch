@@ -1,14 +1,15 @@
 # NetWatch Monitoring Platform - Docker Compose Configuration
 #
-# Usage:
-#   1. Create .env file with your Supabase credentials
-#   2. Run: docker-compose up -d
-#   3. Access frontend at http://localhost:3001
+# 使用方法:
+#   1. docker-compose up -d
+#   2. 访问 http://localhost:3000
+#
+# 前端默认使用真实后端API，无需额外配置
 
 version: '3.8'
 
 services:
-  # Backend API Service
+  # 后端 API 服务（使用 JSON 文件存储）
   backend:
     build:
       context: ./backend
@@ -20,9 +21,9 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - DATA_DIR=/app/data
+    volumes:
+      - ./data:/app/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
       interval: 30s
@@ -32,7 +33,7 @@ services:
     networks:
       - netwatch-network
 
-  # Frontend Web Application
+  # 前端 Web 应用（默认使用真实 API）
   frontend:
     build:
       context: .
@@ -41,8 +42,6 @@ services:
     restart: unless-stopped
     ports:
       - "3001:80"
-    environment:
-      - VITE_API_BASE_URL=http://backend:3000
     depends_on:
       - backend
     networks:

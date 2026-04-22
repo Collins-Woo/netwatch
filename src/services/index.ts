@@ -1,67 +1,49 @@
 /**
  * API Service Index
  *
- * 根据环境变量决定使用真实API还是Mock API
+ * 默认使用真实后端API，仅当显式设置 VITE_USE_MOCK_API=true 时使用Mock数据
  * VITE_USE_MOCK_API=true - 使用Mock数据（前端Demo模式）
- * VITE_USE_MOCK_API=false - 使用真实后端API
+ * VITE_USE_MOCK_API=false - 使用真实后端API（默认）
  */
 
 import * as mockApi from './mockApi';
-import * as userApi from './userApi';
+import * as apiModule from './api';
+import * as userApiModule from './userApi';
 
-// Determine which API to use
-const useMockApi = import.meta.env.VITE_USE_MOCK_API !== 'false' || !import.meta.env.VITE_API_URL;
+// Determine which API to use - 默认使用真实API（仅当显式设置 VITE_USE_MOCK_API=true 时使用Mock）
+const useMockApi = import.meta.env.VITE_USE_MOCK_API === 'true';
 
-// Import real API conditionally
-let realApi: any = null;
-
-async function loadRealApi() {
-  if (!realApi) {
-    const module = await import('./api');
-    realApi = module.default;
-  }
-  return realApi;
-}
-
-// Get the appropriate API based on environment
-async function getApi() {
-  if (useMockApi) {
-    return mockApi.default;
-  }
-  return loadRealApi();
-}
-
-// Create dynamic API proxy
+// Create API proxy based on mode
 const apiProxy = {
-  get tasks() { return useMockApi ? mockApi.tasksApi : null; },
-  get nodes() { return useMockApi ? mockApi.nodesApi : null; },
-  get alerts() { return useMockApi ? mockApi.alertsApi : null; },
-  get status() { return useMockApi ? mockApi.statusApi : null; },
-  get history() { return useMockApi ? mockApi.historyApi : null; },
-  get dashboard() { return useMockApi ? mockApi.dashboardApi : null; },
-  get users() { return useMockApi ? mockApi.usersApi : userApi.usersApi; },
-  get auth() { return useMockApi ? mockApi.authApi : userApi.authApi; },
-  get audit() { return useMockApi ? mockApi.auditApi : userApi.auditApi; },
-  get session() { return useMockApi ? mockApi.sessionApi : userApi.sessionApi; },
+  get tasks() { return useMockApi ? mockApi.tasksApi : apiModule.tasksApi; },
+  get nodes() { return useMockApi ? mockApi.nodesApi : apiModule.nodesApi; },
+  get alerts() { return useMockApi ? mockApi.alertsApi : apiModule.alertsApi; },
+  get status() { return useMockApi ? mockApi.statusApi : apiModule.statusApi; },
+  get history() { return useMockApi ? mockApi.historyApi : apiModule.historyApi; },
+  get dashboard() { return useMockApi ? mockApi.dashboardApi : apiModule.dashboardApi; },
+  get users() { return useMockApi ? mockApi.usersApi : userApiModule.usersApi; },
+  get auth() { return useMockApi ? mockApi.authApi : userApiModule.authApi; },
+  get audit() { return useMockApi ? mockApi.auditApi : userApiModule.auditApi; },
+  get session() { return useMockApi ? mockApi.sessionApi : userApiModule.sessionApi; },
 };
 
 // Export individual APIs
-export const tasksApi = useMockApi ? mockApi.tasksApi : null as any;
-export const nodesApi = useMockApi ? mockApi.nodesApi : null as any;
-export const alertsApi = useMockApi ? mockApi.alertsApi : null as any;
-export const statusApi = useMockApi ? mockApi.statusApi : null as any;
-export const historyApi = useMockApi ? mockApi.historyApi : null as any;
-export const dashboardApi = useMockApi ? mockApi.dashboardApi : null as any;
+export const tasksApi = useMockApi ? mockApi.tasksApi : apiModule.tasksApi;
+export const nodesApi = useMockApi ? mockApi.nodesApi : apiModule.nodesApi;
+export const alertsApi = useMockApi ? mockApi.alertsApi : apiModule.alertsApi;
+export const statusApi = useMockApi ? mockApi.statusApi : apiModule.statusApi;
+export const historyApi = useMockApi ? mockApi.historyApi : apiModule.historyApi;
+export const dashboardApi = useMockApi ? mockApi.dashboardApi : apiModule.dashboardApi;
 
-// User management APIs (available in both modes)
-export const usersApi = useMockApi ? mockApi.usersApi : userApi.usersApi;
-export const authApi = useMockApi ? mockApi.authApi : userApi.authApi;
-export const auditApi = useMockApi ? mockApi.auditApi : userApi.auditApi;
-export const sessionApi = useMockApi ? mockApi.sessionApi : userApi.sessionApi;
+// User management APIs
+export const usersApi = useMockApi ? mockApi.usersApi : userApiModule.usersApi;
+export const authApi = useMockApi ? mockApi.authApi : userApiModule.authApi;
+export const auditApi = useMockApi ? mockApi.auditApi : userApiModule.auditApi;
+export const sessionApi = useMockApi ? mockApi.sessionApi : userApiModule.sessionApi;
 
 // Permission utilities
-export const hasPermission = userApi.hasPermission;
-export const hasRole = userApi.hasRole;
-export const Permissions = userApi.Permissions;
+export const hasPermission = userApiModule.hasPermission;
+export const hasRole = userApiModule.hasRole;
+export const Permissions = userApiModule.Permissions;
 
 export default useMockApi ? mockApi.default : apiProxy;
