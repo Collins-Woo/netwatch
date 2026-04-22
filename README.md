@@ -1,3 +1,14 @@
+---
+AIGC:
+    ContentProducer: Minimax Agent AI
+    ContentPropagator: Minimax Agent AI
+    Label: AIGC
+    ProduceID: "00000000000000000000000000000000"
+    PropagateID: "00000000000000000000000000000000"
+    ReservedCode1: 304402206d1fe3cc4423e02eb4a74d077062fcd1a37c4d86c301b31da97996387097a78d02202176e3385ef1efdc92853c4c04013c1e47784fdddbb51b00c45b9a33e5ec7472
+    ReservedCode2: 3045022100e056ae682053af173ca27d1c939f5aae361b96a48b784778aba6f28e3aa39df802207aba443ce3bcfede92243060efeca4f134b5562cbf4bc83cbb29932424176b6e
+---
+
 # NetWatch 监控平台
 
 > 企业级网站与服务监控系统，支持 HTTP/HTTPS/API/TCP/DNS/SSL 等多种监控类型
