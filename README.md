@@ -3,44 +3,39 @@
 
 > 企业级网站与服务监控系统，支持 HTTP/HTTPS/API/TCP/DNS/SSL 等多种监控类型
 
-## 新增功能 (v1.1.0)
+## 特性亮点 (v1.2.0)
+
+### 开箱即用
+- **零配置部署** - 后端默认使用 JSON 文件存储，无需安装数据库
+- **前后端自动对接** - 前端默认连接真实后端 API，无需额外配置
+- **一键部署脚本** - `./deploy.sh` 即可完成全部部署
 
 ### 用户认证与权限管理
-- **JWT Token 认证** - 安全的Token认证机制
+- **JWT Token 认证** - 安全的 Token 认证机制
 - **四角色权限体系** - 管理员/运维人员/审计员/查看者
 - **操作审计日志** - 完整的操作记录追踪
-- **登录历史记录** - 记录登录IP和时间
 
-### WebSocket 实时通信
-- **实时状态推送** - 任务状态实时更新
-- **Agent心跳检测** - 自动检测节点在线状态
-- **即时告警通知** - 新告警立即推送到前端
-- **手动触发任务** - 支持前端手动执行监控任务
+### 实时监控
+- **WebSocket 实时通信** - 任务状态实时更新
+- **多种监控类型** - HTTP/HTTPS/API/TCP/PING/DNS/SSL
+- **即时告警通知** - 支持钉钉机器人告警
 
-### 数据导出
-- **CSV 导出** - 支持告警记录和响应时间数据导出
-- **JSON 导出** - 完整数据导出
-- **按时间筛选** - 支持 24小时/7天/30天/90天 时间范围
-
-### 数据库灵活切换
-- **JSON 文件** - 最轻量，适合开发测试
-- **SQLite** - 单机部署首选
-- **Supabase** - 规模化生产环境
-
-详见 [数据库切换指南](docs/DATABASE_SWITCH.md)
+### 灵活扩展
+- **中心 + Agent 架构** - 支持多节点分布式监控
+- **数据导出** - 支持 CSV/JSON 格式导出
+- **多种数据库** - JSON 文件 / SQLite / Supabase 自由切换
 
 ## 功能特性
 
 ### 监控类型
-- **HTTP/HTTPS 监控** - 监控网站可用性和响应时间
-- **API 接口监控** - 支持 GET/POST/PUT/DELETE 等 HTTP 方法，自定义请求头和请求体
-- **Ping 监控** - ICMP ping 检测主机可达性
-- **TCP 端口监控** - 检测端口连通性
-- **DNS 解析监控** - 支持 A/AAAA/CNAME/MX/TXT/NS 记录类型
-- **SSL 证书监控** - 监控证书到期时间
-- **路由追踪** - 网络路径分析
-- **MySQL 数据库监控** - 数据库连接检测
-- **Redis 缓存监控** - Redis 服务可用性检测
+| 类型 | 说明 |
+|------|------|
+| HTTP/HTTPS | 网站可用性和响应时间监控 |
+| API 接口 | 支持 GET/POST/PUT/DELETE，自定义请求头和请求体 |
+| Ping | ICMP ping 检测主机可达性 |
+| TCP 端口 | 检测端口连通性 |
+| DNS 解析 | A/AAAA/CNAME/MX/TXT/NS 记录类型 |
+| SSL 证书 | 监控证书到期时间 |
 
 ### 核心功能
 - **中心服务 + Agent 架构** - Agent 可部署在任意服务器
@@ -48,76 +43,82 @@
 - **实时告警** - 支持钉钉机器人告警
 - **历史数据** - 完整的监控历史记录
 - **响应时间图表** - 直观的性能趋势展示
+- **数据导出** - CSV/JSON 格式，支持时间范围筛选
 
 ## 快速开始
 
-### 方式一：Docker 部署（推荐）
+### 方式一：一键部署脚本（推荐）
 
 ```bash
 # 克隆项目
 git clone https://github.com/Collins-Woo/netwatch.git
 cd netwatch
 
-# 配置环境变量
-cp .env.example .env
-# 编辑 .env 文件，填入 Supabase 凭证
+# 一键部署（自动安装依赖、构建前端、配置Nginx）
+sudo ./deploy.sh
+
+# 访问 http://你的服务器IP:3000
+```
+
+### 方式二：Docker 部署
+
+```bash
+# 克隆项目
+git clone https://github.com/Collins-Woo/netwatch.git
+cd netwatch
 
 # 启动服务
 docker compose up -d
 
-# 访问 http://localhost:3001
+# 访问 http://localhost:3000
 ```
 
-### 方式二：手动部署
+### 方式三：手动部署
 
-详见 [Rocky Linux 部署指南](docs/DEPLOY_ROCKY_LINUX.md)
+```bash
+# 安装依赖
+npm install && cd backend && npm install && cd ..
 
-## 目录结构
+# 启动后端（使用 JSON 文件存储）
+cd backend
+npm start
 
-```
-netwatch/
-├── backend/                    # 后端 API 服务
-│   ├── src/
-│   │   ├── agent/             # Agent 节点代码
-│   │   │   ├── agent.js       # Agent 主程序
-│   │   │   ├── agent-init.sh  # Linux 安装脚本
-│   │   │   └── Dockerfile.agent
-│   │   ├── config/            # 配置文件
-│   │   ├── routes/            # API 路由
-│   │   └── server.js          # Express 服务器
-│   ├── supabase/              # 数据库 Schema
-│   └── package.json
-├── docs/                      # 文档
-│   └── DEPLOY_ROCKY_LINUX.md  # Rocky Linux 部署指南
-├── src/                       # React 前端
-│   ├── pages/                 # 页面组件
-│   ├── services/              # API 服务
-│   └── types/                 # TypeScript 类型
-├── docker-compose.yml         # Docker Compose 配置
-└── README.md
+# 启动前端（新终端）
+npm run dev
 ```
 
-## 配置说明
+## 部署说明
 
-### 环境变量 (.env)
+### 默认配置
+| 项目 | 默认值 |
+|------|--------|
+| 服务端口 | 3000 |
+| 数据存储 | JSON 文件（`/opt/netwatch/data/`） |
+| 前端 API | 自动通过 Nginx 代理 |
 
-```env
-# Supabase 配置
+### 使用 SQLite 数据库（可选）
+
+```bash
+# 设置环境变量后部署
+sudo DATABASE_TYPE=sqlite ./deploy.sh
+```
+
+### 使用 Supabase（可选）
+
+```bash
+# 编辑后端 .env 文件
+cd backend
+cat > .env << EOF
+DATABASE_TYPE=supabase
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-
-# 服务端口
 PORT=3000
-NODE_ENV=production
+EOF
+
+# 启动后端
+npm start
 ```
-
-### Supabase 数据库设置
-
-1. 登录 [Supabase](https://supabase.com)
-2. 创建新项目
-3. 在 SQL Editor 中运行 `backend/supabase/schema.sql`
-4. 获取 API URL 和密钥
 
 ## 添加监控节点
 
@@ -132,68 +133,22 @@ NODE_ENV=production
 ### 2. 在目标服务器安装 Agent
 
 ```bash
-# 方式一：使用安装脚本（Linux）
+# 下载 Agent
 curl -LO https://raw.githubusercontent.com/Collins-Woo/netwatch/main/backend/src/agent/agent-init.sh
 chmod +x agent-init.sh
+
+# 运行安装脚本
 sudo ./agent-init.sh
 
-# 方式二：Docker 部署
-cd /opt/netwatch-agent
-docker compose -f docker-compose.agent.yml up -d
-```
+# 配置（编辑 /opt/netwatch-agent/.env）
+CENTER_SERVER=http://你的服务器IP:3000
+REGISTER_KEY=sk_你的注册密钥
+NODE_NAME=你的节点名称
+REGION=节点地区
 
-### 3. 配置 Agent
-
-创建 `.env` 文件：
-
-```env
-CENTER_SERVER=http://your-server:3000
-REGISTER_KEY=sk_your_register_key
-```
-
-### 4. 启动 Agent
-
-```bash
-# 手动启动
-node agent.js
-
-# 或使用 PM2
+# 启动
 pm2 start agent.js --name netwatch-agent
-pm2 save
-pm2 startup
 ```
-
-## 创建监控任务
-
-1. 进入「监控任务」页面
-2. 点击「新建任务」
-3. 选择监控类型
-4. 填写目标地址和配置
-5. 选择执行节点
-6. 设置告警规则
-7. 保存任务
-
-### API 接口监控配置示例
-
-```json
-{
-  "method": "POST",
-  "headers": {
-    "Content-Type": "application/json",
-    "Authorization": "Bearer your-token"
-  },
-  "body": "{\"username\":\"test\",\"password\":\"***\"}",
-  "expectedPattern": "success"
-}
-```
-
-## 钉钉机器人配置
-
-1. 在钉钉群中添加机器人
-2. 选择「自定义关键词」机器人
-3. 复制 Webhook 地址
-4. 在 NetWatch「告警配置」中添加钉钉机器人
-5. 配置告警规则
 
 ## API 接口
 
@@ -225,86 +180,111 @@ pm2 startup
 | GET | /api/alerts | 获取告警列表 |
 | PUT | /api/alerts/:id/acknowledge | 确认告警 |
 
+### 健康检查
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/health | 服务健康状态 |
+| GET | /health | Nginx 健康检查 |
+
 ## 技术栈
 
 ### 前端
-- React 18.3
-- TypeScript
-- Vite
+- React 18.3 + TypeScript
+- Vite 构建工具
 - Tailwind CSS
-- Recharts
+- Recharts 图表
 - React Router
 
 ### 后端
 - Node.js 20
 - Express.js
+- WebSocket (ws)
+- JWT 认证
+
+### 数据存储
+- JSON 文件（默认）
+- SQLite
 - Supabase (PostgreSQL)
 
-### Agent
-- Node.js 20
-- 支持 Docker 部署
+## 目录结构
 
-## 开发指南
-
-### 本地开发
-
-```bash
-# 启动后端
-cd backend
-npm install
-npm run dev
-
-# 启动前端
-cd ..
-npm install
-npm run dev
 ```
-
-### 构建生产版本
-
-```bash
-npm run build
+netwatch/
+├── backend/                    # 后端 API 服务
+│   ├── src/
+│   │   ├── server-json.js     # JSON 文件存储服务器（默认）
+│   │   ├── server-websocket.js # WebSocket 服务器
+│   │   └── config/            # 配置文件
+│   └── package.json
+├── src/                       # React 前端
+│   ├── pages/                 # 页面组件
+│   ├── services/              # API 服务
+│   └── hooks/                 # React Hooks
+├── docs/                      # 文档
+│   ├── DEPLOY_ROCKY_LINUX.md  # 部署指南
+│   └── DATABASE_SWITCH.md      # 数据库切换指南
+├── deploy.sh                  # 一键部署脚本
+├── docker-compose.yml         # Docker Compose 配置
+├── nginx.conf                 # Nginx 配置
+└── README.md
 ```
 
 ## 部署架构图
 
 ```
-                    ┌─────────────────┐
-                    │   用户浏览器     │
-                    └────────┬────────┘
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │   Nginx/CDN     │
-                    │   端口 80/443   │
-                    └────────┬────────┘
-                             │
-              ┌──────────────┴──────────────┐
-              │                             │
-              ▼                             ▼
-    ┌─────────────────┐           ┌─────────────────┐
-    │   前端静态文件   │           │   后端 API      │
-    │   端口 3001     │           │   端口 3000     │
-    └─────────────────┘           └────────┬────────┘
-                                            │
-                                            ▼
-                                  ┌─────────────────┐
-                                  │   Supabase      │
-                                  │   PostgreSQL    │
-                                  └─────────────────┘
+                         ┌─────────────────┐
+                         │   用户浏览器     │
+                         └────────┬────────┘
+                                  │
+                                  ▼
+                         ┌─────────────────┐
+                         │   Nginx/CDN     │
+                         │   端口 3000    │
+                         └────────┬────────┘
+                                  │
+                    ┌─────────────┴─────────────┐
+                    │                           │
+                    ▼                           ▼
+          ┌─────────────────┐         ┌─────────────────┐
+          │   前端静态文件   │         │   后端 API      │
+          │   (SPA)        │         │   (Express)     │
+          └─────────────────┘         └────────┬────────┘
+                                               │
+                                  ┌─────────────┴─────────────┐
+                                  │                           │
+                                  ▼                           ▼
+                        ┌─────────────────┐         ┌─────────────────┐
+                        │   JSON 文件     │         │   Supabase      │
+                        │   (默认)       │         │   (可选)        │
+                        └─────────────────┘         └─────────────────┘
 
               ┌──────────────┬──────────────┬──────────────┐
               │              │              │              │
               ▼              ▼              ▼              ▼
-    ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-    │   Agent 节点1   │ │   Agent 节点2   │ │   Agent 节点3   │ │   Agent 节点N   │
-    │   (华东)        │ │   (华南)        │ │   (华北)        │ │   (海外)        │
-    └─────────────────┘ └─────────────────┘ └─────────────────┘ └─────────────────┘
-              │              │              │              │
-              └──────────────┴──────────────┴──────────────┘
-                                        │
-                                        ▼
-                              执行监控任务，上报结果
+    ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+    │   Agent 节点1   │ │   Agent 节点2   │ │   Agent 节点3   │
+    │   (华东)        │ │   (华南)        │ │   (华北)        │
+    └─────────────────┘ └─────────────────┘ └─────────────────┘
+              │              │              │
+              └──────────────┴──────────────┘
+                          上报监控结果
+```
+
+## 管理命令
+
+```bash
+# 查看服务状态
+pm2 status
+
+# 查看后端日志
+pm2 logs netwatch-backend
+
+# 重启服务
+pm2 restart netwatch-backend
+
+# 查看数据文件
+ls /opt/netwatch/data/
 ```
 
 ## 许可证
