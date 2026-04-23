@@ -216,7 +216,11 @@ class NetWatchAgent {
       result.error = error.message;
     }
 
-    result.responseTime = Date.now() - startTime;
+    // 如果检查方法没有设置响应时间，则使用总执行时间
+    // 注意：Ping等方法会从命令输出中提取真实响应时间，不应被覆盖
+    if (result.responseTime === 0 || result.responseTime === undefined) {
+      result.responseTime = Date.now() - startTime;
+    }
 
     // 输出结果
     if (result.success) {
@@ -351,29 +355,58 @@ class NetWatchAgent {
 
   /**
    * Ping 检查
+   * 从 ping 命令输出中提取真实的 ICMP 往返时间
    */
   async checkPing(task: Task): Promise<CheckResult> {
+    const startTime = Date.now();
     try {
       const target = task.target.replace(/^https?:\/\//, '');
       const timeout = task.timeout || 5;
 
-      const { stdout } = await execAsync(`ping -c 1 -W ${timeout} ${target}`);
+      const { stdout, stderr } = await execAsync(`ping -c 1 -W ${timeout} ${target}`);
 
+      // 从 ping 输出中提取响应时间，例如: "time=2.34 ms" 或 "time<1 ms"
       const match = stdout.match(/time[=<](\d+\.?\d*)\s*ms/i);
-      const responseTime = match ? Math.round(parseFloat(match[1])) : 0;
+      let responseTime = 0;
 
-      return {
-        success: responseTime > 0,
-        responseTime,
-        statusCode: null,
-        error: responseTime > 0 ? null : '无法解析响应时间'
-      };
-    } catch (error: any) {
+      if (match) {
+        responseTime = Math.round(parseFloat(match[1]));
+      } else if (stdout.includes('time=')) {
+        // 如果有 time= 但没匹配到数字，尝试其他方式
+        const timeMatch = stdout.match(/time[=<]\s*(\d+)/i);
+        if (timeMatch) {
+          responseTime = parseInt(timeMatch[1]);
+        }
+      }
+
+      // 如果成功获取到响应时间
+      if (responseTime > 0) {
+        return {
+          success: true,
+          responseTime,
+          statusCode: null,
+          error: null
+        };
+      }
+
+      // 无法解析响应时间但命令成功执行
       return {
         success: false,
-        responseTime: 0,
+        responseTime: Date.now() - startTime,
         statusCode: null,
-        error: '无法到达目标主机'
+        error: '无法解析 ICMP 响应时间'
+      };
+    } catch (error: any) {
+      // ping 命令失败（主机不可达、超时等）
+      return {
+        success: false,
+        responseTime: Date.now() - startTime,
+        statusCode: null,
+        error: error.message.includes('Name or service not known')
+          ? '无法解析目标主机'
+          : error.message.includes('Request timeout')
+          ? '请求超时'
+          : `Ping失败: ${error.message}`
       };
     }
   }

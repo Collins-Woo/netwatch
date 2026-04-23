@@ -54,7 +54,7 @@ export interface Task {
   timeout: number;           // 秒
   statusCode?: number;       // HTTP期望状态码
   alertThreshold: number;    // 连续失败次数
-  nodeId: string;
+  nodeIds: string[];         // 监控节点ID列表（支持多选）
   enabled: boolean;
   status: TaskStatus;
   lastResponseTime?: number;  // 毫秒

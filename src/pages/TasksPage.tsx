@@ -101,10 +101,14 @@ export default function TasksPage() {
     setShowModal(true);
   };
 
-  // Get node name
-  const getNodeName = (nodeId: string) => {
-    const node = mockAgents.find((n) => n.id === nodeId);
-    return node?.name || '未知节点';
+  // Get node names for multi-node display
+  const getNodeNames = (nodeIds: string[]) => {
+    if (!nodeIds || nodeIds.length === 0) return '未分配';
+    const names = nodeIds.map(id => {
+      const node = mockAgents.find((n) => n.id === id);
+      return node?.name || '未知';
+    });
+    return names.join(', ');
   };
 
   return (
@@ -282,7 +286,7 @@ export default function TasksPage() {
                   )}
                 </td>
                 <td className="px-6 py-4">
-                  <span className="text-sm text-gray-600">{getNodeName(task.nodeId)}</span>
+                  <span className="text-sm text-gray-600">{getNodeNames(task.nodeIds)}</span>
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center justify-end gap-2">
@@ -405,7 +409,7 @@ function TaskModal({ task, onClose, onSave }: TaskModalProps) {
       timeout: 10,
       statusCode: 200,
       alertThreshold: 3,
-      nodeId: mockAgents[0]?.id || '',
+      nodeIds: mockAgents.filter((a) => a.status === 'online' && a.enabled).map(a => a.id),
       enabled: true,
       config: {
         method: 'GET',
@@ -643,26 +647,50 @@ function TaskModal({ task, onClose, onSave }: TaskModalProps) {
                 </div>
               )}
 
-              {/* Execute Node */}
+              {/* Execute Nodes - Multi-select */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   执行节点 <span className="text-red-500">*</span>
+                  <span className="ml-2 text-xs text-gray-500 font-normal">（可多选）</span>
                 </label>
-                <select
-                  value={formData.nodeId || ''}
-                  onChange={(e) => setFormData({ ...formData, nodeId: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2B5D3A]/30"
-                  required
-                >
-                  <option value="">请选择监控节点</option>
-                  {mockAgents
-                    .filter((a) => a.status === 'online' && a.enabled)
-                    .map((agent) => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name} ({agent.ip})
-                      </option>
-                    ))}
-                </select>
+                <div className="border border-gray-200 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+                  {mockAgents.filter((a) => a.status === 'online' && a.enabled).length === 0 ? (
+                    <p className="text-sm text-gray-500">暂无可用节点</p>
+                  ) : (
+                    mockAgents
+                      .filter((a) => a.status === 'online' && a.enabled)
+                      .map((agent) => (
+                        <label
+                          key={agent.id}
+                          className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1.5 rounded-lg transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={formData.nodeIds?.includes(agent.id) || false}
+                            onChange={(e) => {
+                              const currentNodes = formData.nodeIds || [];
+                              if (e.target.checked) {
+                                setFormData({ ...formData, nodeIds: [...currentNodes, agent.id] });
+                              } else {
+                                setFormData({ ...formData, nodeIds: currentNodes.filter(id => id !== agent.id) });
+                              }
+                            }}
+                            className="w-4 h-4 rounded border-gray-300 text-[#2B5D3A] focus:ring-[#2B5D3A]"
+                          />
+                          <span className="text-sm text-gray-700">{agent.name}</span>
+                          <span className="text-xs text-gray-400">({agent.ip})</span>
+                          {agent.region && (
+                            <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
+                              {agent.region === 'east' ? '华东' : agent.region === 'south' ? '华南' : agent.region === 'north' ? '华北' : '海外'}
+                            </span>
+                          )}
+                        </label>
+                      ))
+                  )}
+                </div>
+                {(!formData.nodeIds || formData.nodeIds.length === 0) && (
+                  <p className="text-xs text-red-500 mt-1">请至少选择一个监控节点</p>
+                )}
               </div>
 
               {/* Enable Status */}
