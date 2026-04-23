@@ -82,30 +82,21 @@ export const nodesApi = {
 export const alertsApi = {
   getConfig: () => fetchApi('/alerts/config'),
 
-  updateConfig: (data: any) => fetchApi('/alerts/config', { method: 'PUT', body: JSON.stringify(data) }),
+  saveConfig: (data: any) => fetchApi('/alerts/config', { method: 'POST', body: JSON.stringify(data) }),
 
-  getRules: () => fetchApi('/alerts/rules'),
+  testDingtalk: (data: any) => fetchApi('/alerts/config/test', { method: 'POST', body: JSON.stringify(data) }),
 
-  createRule: (data: any) => fetchApi('/alerts/rules', { method: 'POST', body: JSON.stringify(data) }),
-
-  updateRule: (id: string, data: any) => fetchApi(`/alerts/rules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-
-  deleteRule: (id: string) => fetchApi(`/alerts/rules/${id}`, { method: 'DELETE' }),
-
-  test: (data: any) => fetchApi('/alerts/test', { method: 'POST', body: JSON.stringify(data) }),
-
-  getHistory: (params?: { task_id?: string; level?: string; acknowledged?: boolean; limit?: number }) => {
+  getAll: (params?: { taskId?: string; level?: string; acknowledged?: string }) => {
     const searchParams = new URLSearchParams();
-    if (params?.task_id) searchParams.append('task_id', params.task_id);
+    if (params?.taskId) searchParams.append('taskId', params.taskId);
     if (params?.level) searchParams.append('level', params.level);
-    if (params?.acknowledged !== undefined) searchParams.append('acknowledged', String(params.acknowledged));
-    if (params?.limit) searchParams.append('limit', String(params.limit));
+    if (params?.acknowledged !== undefined) searchParams.append('acknowledged', params.acknowledged);
 
     const query = searchParams.toString();
     return fetchApi(`/alerts${query ? `?${query}` : ''}`);
   },
 
-  acknowledge: (id: string) => fetchApi(`/alerts/${id}/acknowledge`, { method: 'POST' }),
+  acknowledge: (id: string) => fetchApi(`/alerts/${id}/acknowledge`, { method: 'PUT' }),
 };
 
 // Status API

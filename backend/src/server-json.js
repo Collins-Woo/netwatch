@@ -205,39 +205,68 @@ app.delete('/api/tasks/:id', (req, res) => {
   }
 });
 
+// 获取任务执行状态（连续失败次数等）
+app.get('/api/tasks/:id/execution', (req, res) => {
+  try {
+    const execution = jsonDb.getTaskExecutionData(req.params.id);
+    const task = jsonDb.getTaskById(req.params.id);
+    res.json({
+      taskId: req.params.id,
+      taskName: task?.name || '未知任务',
+      consecutiveFailures: execution.consecutiveFailures || 0,
+      lastFailureTime: execution.lastFailureTime,
+      lastSuccessTime: execution.lastSuccessTime,
+    });
+  } catch (error) {
+    res.status(500).json({ error: '获取任务执行状态失败' });
+  }
+});
+
+// 重置任务失败计数
+app.post('/api/tasks/:id/reset-failures', (req, res) => {
+  try {
+    jsonDb.resetFailureCount(req.params.id);
+    res.json({ success: true, message: '失败计数已重置' });
+  } catch (error) {
+    res.status(500).json({ error: '重置失败计数失败' });
+  }
+});
+
 // Agent 上报结果
 app.post('/api/tasks/:id/report', async (req, res) => {
   try {
     const { success, responseTime, statusCode, error } = req.body;
     jsonDb.reportTaskResult(req.params.id, { success, responseTime, statusCode, error });
 
-    // 如果失败，生成告警并发送钉钉通知
-    if (!success) {
-      const task = jsonDb.getTaskById(req.params.id);
-      if (task) {
-        const alert = jsonDb.createAlert({
-          task_id: task.id,
-          task_name: task.name,
-          level: 'critical',
-          message: error || '监控检测失败',
-          response_time: responseTime,
-          status_code: statusCode,
-        });
+    const task = jsonDb.getTaskById(req.params.id);
 
-        // 异步发送钉钉告警
-        jsonDb.sendDingtalkAlert(alert).then(result => {
-          if (result.success) {
-            console.log(`✓ 钉钉告警已发送: ${task.name}`);
-          } else if (!result.skipped) {
-            console.error(`✗ 钉钉告警发送失败: ${result.error}`);
-          }
-        }).catch(err => {
-          console.error('钉钉告警发送异常:', err.message);
-        });
-      }
+    // 使用告警规则引擎评估结果
+    const { alerts, matchedRules } = jsonDb.processTaskResultWithRules(req.params.id, {
+      success,
+      responseTime,
+      statusCode,
+      error,
+    });
+
+    // 发送钉钉通知
+    for (const alert of alerts) {
+      jsonDb.sendDingtalkAlert(alert).then(result => {
+        if (result.success) {
+          console.log(`✓ 钉钉告警已发送: ${task?.name} - ${alert.message}`);
+        } else if (!result.skipped) {
+          console.error(`✗ 钉钉告警发送失败: ${result.error}`);
+        }
+      }).catch(err => {
+        console.error('钉钉告警发送异常:', err.message);
+      });
     }
 
-    res.json({ received: true });
+    // 返回结果
+    res.json({
+      received: true,
+      alerts: alerts.length,
+      matchedRules: matchedRules.map(r => r.ruleName),
+    });
   } catch (error) {
     res.status(500).json({ error: '上报结果失败' });
   }

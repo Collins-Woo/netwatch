@@ -295,6 +295,184 @@ acknowledgeAlert(id) {
     return alerts[index];
   }
 
+  // ============ 告警规则匹配引擎 ============
+
+  /**
+   * 评估告警规则
+   * @param {Object} taskResult - 任务执行结果 { taskId, success, responseTime, statusCode }
+   * @returns {Array} 匹配的告警规则及其级别
+   */
+  evaluateAlertRules(taskResult) {
+    const config = this.getAlertConfig();
+    if (!config.enabled || !config.rules || config.rules.length === 0) {
+      return [];
+    }
+
+    const enabledRules = config.rules.filter(r => r.enabled);
+    if (enabledRules.length === 0) {
+      return [];
+    }
+
+    const matchedAlerts = [];
+
+    for (const rule of enabledRules) {
+      let isTriggered = false;
+
+      switch (rule.condition) {
+        case 'failure_count':
+          // 获取该任务的连续失败次数
+          const consecutiveFailures = this.getConsecutiveFailures(taskResult.taskId);
+          // 如果当前执行失败，增加计数
+          if (!taskResult.success) {
+            this.incrementFailureCount(taskResult.taskId);
+          } else {
+            // 成功后重置计数
+            this.resetFailureCount(taskResult.taskId);
+          }
+          // 检查是否超过阈值
+          isTriggered = consecutiveFailures >= rule.threshold;
+          break;
+
+        case 'response_time':
+          // 检查响应时间是否超过阈值
+          if (taskResult.responseTime !== undefined && taskResult.responseTime !== null) {
+            isTriggered = taskResult.responseTime > rule.threshold;
+          }
+          break;
+
+        case 'availability':
+          // 获取任务可用率
+          const task = this.getTaskById(taskResult.taskId);
+          if (task && task.availability !== undefined && task.availability !== null) {
+            isTriggered = task.availability < rule.threshold;
+          }
+          break;
+
+        case 'status_code':
+          // 检查状态码是否匹配（用于HTTP监控）
+          if (taskResult.statusCode !== undefined && taskResult.statusCode !== null) {
+            isTriggered = taskResult.statusCode !== rule.threshold;
+          }
+          break;
+      }
+
+      if (isTriggered) {
+        matchedAlerts.push({
+          ruleId: rule.id,
+          ruleName: rule.name,
+          level: rule.level,
+          condition: rule.condition,
+          threshold: rule.threshold,
+        });
+      }
+    }
+
+    return matchedAlerts;
+  }
+
+  /**
+   * 获取任务连续失败次数
+   */
+  getConsecutiveFailures(taskId) {
+    const executionData = this.getTaskExecutionData(taskId);
+    return executionData.consecutiveFailures || 0;
+  }
+
+  /**
+   * 增加任务失败计数
+   */
+  incrementFailureCount(taskId) {
+    const executions = this.readJSON('task_executions') || [];
+    const index = executions.findIndex(e => e.task_id === taskId);
+
+    if (index >= 0) {
+      executions[index].consecutiveFailures = (executions[index].consecutiveFailures || 0) + 1;
+      executions[index].lastFailureTime = new Date().toISOString();
+    } else {
+      executions.push({
+        task_id: taskId,
+        consecutiveFailures: 1,
+        lastFailureTime: new Date().toISOString(),
+        lastSuccessTime: null,
+      });
+    }
+
+    this.writeJSON('task_executions', executions);
+  }
+
+  /**
+   * 重置任务失败计数（成功后调用）
+   */
+  resetFailureCount(taskId) {
+    const executions = this.readJSON('task_executions') || [];
+    const index = executions.findIndex(e => e.task_id === taskId);
+
+    if (index >= 0) {
+      executions[index].consecutiveFailures = 0;
+      executions[index].lastSuccessTime = new Date().toISOString();
+    } else {
+      executions.push({
+        task_id: taskId,
+        consecutiveFailures: 0,
+        lastFailureTime: null,
+        lastSuccessTime: new Date().toISOString(),
+      });
+    }
+
+    this.writeJSON('task_executions', executions);
+  }
+
+  /**
+   * 获取任务执行数据
+   */
+  getTaskExecutionData(taskId) {
+    const executions = this.readJSON('task_executions') || [];
+    return executions.find(e => e.task_id === taskId) || {
+      consecutiveFailures: 0,
+      lastFailureTime: null,
+      lastSuccessTime: null,
+    };
+  }
+
+  /**
+   * 处理任务结果并评估告警规则
+   * @returns {Object} { alerts: [], matchedRules: [] }
+   */
+  processTaskResultWithRules(taskId, result) {
+    const matchedRules = this.evaluateAlertRules({ taskId, ...result });
+    const alerts = [];
+
+    for (const rule of matchedRules) {
+      const task = this.getTaskById(taskId);
+      const alert = this.createAlert({
+        task_id: taskId,
+        task_name: task?.name || '未知任务',
+        level: rule.level,
+        message: this.buildAlertMessage(rule, result, task),
+        response_time: result.responseTime,
+        status_code: result.statusCode,
+        rule_id: rule.ruleId,
+        rule_name: rule.ruleName,
+      });
+      alerts.push(alert);
+    }
+
+    return { alerts, matchedRules };
+  }
+
+  /**
+   * 构建告警消息
+   */
+  buildAlertMessage(rule, result, task) {
+    const messages = {
+      failure_count: `连续失败 ${rule.threshold} 次后触发告警`,
+      response_time: `响应时间 ${result.responseTime}ms 超过阈值 ${rule.threshold}ms`,
+      availability: `可用率 ${task?.availability || 0}% 低于阈值 ${rule.threshold}%`,
+      status_code: `HTTP状态码 ${result.statusCode} 与预期不符`,
+    };
+    return messages[rule.condition] || `触发告警规则: ${rule.ruleName}`;
+  }
+
   // ============ 钉钉告警配置 ============
 
   /**
