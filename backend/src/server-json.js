@@ -206,22 +206,33 @@ app.delete('/api/tasks/:id', (req, res) => {
 });
 
 // Agent 上报结果
-app.post('/api/tasks/:id/report', (req, res) => {
+app.post('/api/tasks/:id/report', async (req, res) => {
   try {
     const { success, responseTime, statusCode, error } = req.body;
     jsonDb.reportTaskResult(req.params.id, { success, responseTime, statusCode, error });
 
-    // 如果失败，生成告警
+    // 如果失败，生成告警并发送钉钉通知
     if (!success) {
       const task = jsonDb.getTaskById(req.params.id);
       if (task) {
-        jsonDb.createAlert({
+        const alert = jsonDb.createAlert({
           task_id: task.id,
           task_name: task.name,
           level: 'critical',
           message: error || '监控检测失败',
           response_time: responseTime,
           status_code: statusCode,
+        });
+
+        // 异步发送钉钉告警
+        jsonDb.sendDingtalkAlert(alert).then(result => {
+          if (result.success) {
+            console.log(`✓ 钉钉告警已发送: ${task.name}`);
+          } else if (!result.skipped) {
+            console.error(`✗ 钉钉告警发送失败: ${result.error}`);
+          }
+        }).catch(err => {
+          console.error('钉钉告警发送异常:', err.message);
         });
       }
     }
@@ -255,6 +266,39 @@ app.put('/api/alerts/:id/acknowledge', (req, res) => {
     res.json(alert);
   } catch (error) {
     res.status(500).json({ error: '确认告警失败' });
+  }
+});
+
+// ============ 钉钉告警配置 ============
+
+// 获取告警配置
+app.get('/api/alerts/config', (req, res) => {
+  try {
+    const config = jsonDb.getAlertConfig();
+    res.json(config);
+  } catch (error) {
+    res.status(500).json({ error: '获取告警配置失败' });
+  }
+});
+
+// 保存告警配置
+app.post('/api/alerts/config', (req, res) => {
+  try {
+    const config = jsonDb.saveAlertConfig(req.body);
+    res.json(config);
+  } catch (error) {
+    console.error('保存告警配置失败:', error);
+    res.status(500).json({ error: '保存告警配置失败: ' + error.message });
+  }
+});
+
+// 测试告警
+app.post('/api/alerts/config/test', async (req, res) => {
+  try {
+    const result = await jsonDb.testDingtalkAlert(req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
   }
 });
 

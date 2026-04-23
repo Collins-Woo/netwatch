@@ -285,7 +285,7 @@ class JsonDatabase {
     return newAlert;
   }
 
-  acknowledgeAlert(id) {
+acknowledgeAlert(id) {
     const alerts = readJSON('alerts');
     const index = alerts.findIndex(a => a.id === id);
     if (index === -1) return null;
@@ -293,6 +293,180 @@ class JsonDatabase {
     alerts[index].acknowledged = true;
     writeJSON('alerts', alerts);
     return alerts[index];
+  }
+
+  // ============ 钉钉告警配置 ============
+
+  /**
+   * 获取告警配置
+   */
+  getAlertConfig() {
+    const configs = readJSON('alertConfigs');
+    if (configs.length === 0) {
+      // 返回默认配置
+      return {
+        id: 'default',
+        type: 'dingtalk',
+        webhookUrl: '',
+        secret: '',
+        enabled: false,
+        rules: []
+      };
+    }
+    return configs[0];
+  }
+
+  /**
+   * 保存告警配置
+   * 同时支持 webhookUrl (camelCase) 和 webhook_url (snake_case)
+   */
+  saveAlertConfig(data) {
+    const configs = readJSON('alertConfigs');
+
+    // 规范化字段名
+    const normalized = {
+      id: data.id || 'default',
+      type: data.type || 'dingtalk',
+      webhookUrl: data.webhookUrl || data.webhook_url || '',
+      secret: data.secret || '',
+      enabled: data.enabled || false,
+      rules: data.rules || [],
+      updated_at: new Date().toISOString()
+    };
+
+    // 保留现有ID
+    if (configs.length > 0) {
+      normalized.id = configs[0].id;
+      normalized.created_at = configs[0].created_at;
+    } else {
+      normalized.created_at = new Date().toISOString();
+    }
+
+    writeJSON('alertConfigs', [normalized]);
+    return normalized;
+  }
+
+  /**
+   * 测试钉钉告警
+   */
+  async testDingtalkAlert(config) {
+    const webhookUrl = config.webhookUrl || config.webhook_url;
+    if (!webhookUrl) {
+      throw new Error('请先配置钉钉Webhook地址');
+    }
+
+    const message = {
+      msgtype: 'text',
+      text: {
+        content: `【NetWatch 告警测试】\n这是一条测试消息，收到此消息说明告警配置成功！\n时间: ${new Date().toLocaleString('zh-CN')}`
+      }
+    };
+
+    // 如果配置了加签密钥
+    if (config.secret) {
+      const crypto = await import('crypto');
+      const timestamp = Date.now();
+      const sign = crypto.createHmac('sha256', config.secret)
+        .update(`${timestamp}\n${config.secret}`)
+        .digest('base64');
+
+      const url = `${webhookUrl}&timestamp=${timestamp}&sign=${encodeURIComponent(sign)}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(message)
+      });
+
+      const result = await response.json();
+      if (result.errcode !== 0) {
+        throw new Error(`钉钉返回错误: ${result.errmsg}`);
+      }
+      return { success: true, message: '测试消息发送成功' };
+    } else {
+      // 不需要加签
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(message)
+      });
+
+      const result = await response.json();
+      if (result.errcode !== 0) {
+        throw new Error(`钉钉返回错误: ${result.errmsg}`);
+      }
+      return { success: true, message: '测试消息发送成功' };
+    }
+  }
+
+  /**
+   * 发送告警到钉钉
+   */
+  async sendDingtalkAlert(alert) {
+    const config = this.getAlertConfig();
+    if (!config.enabled || !config.webhookUrl) {
+      return { skipped: true, reason: '告警未启用或未配置Webhook' };
+    }
+
+    const webhookUrl = config.webhookUrl;
+
+    // 构建消息内容
+    const levelEmoji = {
+      critical: '🔴 严重',
+      warning: '🟡 警告',
+      info: '🔵 提示'
+    };
+
+    const message = {
+      msgtype: 'markdown',
+      markdown: {
+        title: `【${levelEmoji[alert.level] || '📢'}】${alert.task_name}`,
+        text: `## ${levelEmoji[alert.level] || '📢'} ${alert.task_name}\n\n` +
+              `**告警级别**: ${alert.level === 'critical' ? '严重' : alert.level === 'warning' ? '警告' : '提示'}\n\n` +
+              `**告警信息**: ${alert.message}\n\n` +
+              `**响应时间**: ${alert.response_time ? alert.response_time + 'ms' : 'N/A'}\n\n` +
+              `**时间**: ${new Date(alert.created_at).toLocaleString('zh-CN')}\n\n` +
+              `---\n> 由 NetWatch 监控平台自动发送`
+      }
+    };
+
+    try {
+      if (config.secret) {
+        // 需要加签
+        const { createHmac } = await import('crypto');
+        const timestamp = Date.now();
+        const sign = createHmac('sha256', config.secret)
+          .update(`${timestamp}\n${config.secret}`)
+          .digest('base64');
+
+        const url = `${webhookUrl}&timestamp=${timestamp}&sign=${encodeURIComponent(sign)}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(message)
+        });
+
+        const result = await response.json();
+        if (result.errcode !== 0) {
+          throw new Error(result.errmsg);
+        }
+      } else {
+        // 不需要加签
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(message)
+        });
+
+        const result = await response.json();
+        if (result.errcode !== 0) {
+          throw new Error(result.errmsg);
+        }
+      }
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
   }
 
   // 历史记录操作
