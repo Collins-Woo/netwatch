@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   LineChart,
   Line,
@@ -12,18 +12,17 @@ import {
   History as HistoryIcon,
   Calendar,
   Download,
-  Search,
-  Filter,
+  FileText,
+  FileJson,
   AlertTriangle,
   CheckCircle,
   Clock,
   TrendingUp,
   TrendingDown,
-  FileText,
-  FileJson,
+  Loader2,
 } from 'lucide-react';
-import { mockAlerts, mockTasks, generateResponseTimeData, alertLevelMap } from '../data/mockData';
-import { Alert } from '../types';
+import { alertsApi, tasksApi, historyApi } from '../services/api';
+import { Alert, AlertLevel } from '../types';
 import { useSearchParams } from 'react-router-dom';
 
 export default function HistoryPage() {
@@ -31,33 +30,113 @@ export default function HistoryPage() {
   const [dateRange, setDateRange] = useState<string>('7d');
   const [activeTab, setActiveTab] = useState<'alerts' | 'response'>('alerts');
   const [searchParams] = useSearchParams();
-  const [exportFormat, setExportFormat] = useState<'csv' | 'json'>('csv');
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // 告警数据
+  const [alerts, setAlerts] = useState<any[]>([]);
+  // 任务列表
+  const [tasks, setTasks] = useState<any[]>([]);
+  // 响应时间数据
+  const [responseTimeData, setResponseTimeData] = useState<any[]>([]);
+  // 统计数据
+  const [stats, setStats] = useState({
+    totalChecks: 0,
+    avgResponseTime: 0,
+    maxResponseTime: 0,
+    minResponseTime: 0,
+    availability: 0,
+  });
 
   // Check if export was triggered from header
   const shouldExport = searchParams.get('export') === 'true';
 
+  // 加载数据
+  useEffect(() => {
+    loadData();
+  }, [selectedTask, dateRange]);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+
+      // 并行加载任务列表和告警数据
+      const [tasksRes, alertsRes] = await Promise.all([
+        tasksApi.getAll().catch(() => []),
+        alertsApi.getAll({ taskId: selectedTask !== 'all' ? selectedTask : undefined }),
+      ]);
+
+      setTasks(tasksRes || []);
+
+      // 转换告警数据字段名（后端 snake_case -> 前端 camelCase）
+      const normalizedAlerts = (alertsRes || []).map((a: any) => ({
+        id: a.id,
+        taskId: a.task_id,
+        taskName: a.task_name,
+        level: a.level,
+        message: a.message,
+        responseTime: a.response_time,
+        statusCode: a.status_code,
+        createdAt: a.created_at,
+        acknowledged: a.acknowledged,
+        ruleId: a.rule_id,
+        ruleName: a.rule_name,
+      }));
+      setAlerts(normalizedAlerts);
+
+      // 如果有任务，生成响应时间数据
+      if (tasksRes && tasksRes.length > 0) {
+        const taskId = selectedTask !== 'all' ? selectedTask : tasksRes[0]?.id;
+        if (taskId) {
+          const historyRes = await historyApi.getResponseTime({ task_id: taskId }).catch(() => []);
+          const normalizedHistory = (historyRes || []).map((h: any) => ({
+            time: new Date(h.recorded_at).toLocaleString('zh-CN'),
+            value: h.response_time,
+            responseTime: h.response_time,
+            status: 'normal',
+          }));
+          setResponseTimeData(normalizedHistory);
+
+          // 计算统计
+          if (normalizedHistory.length > 0) {
+            const values = normalizedHistory.map(d => d.value);
+            const total = values.reduce((sum, v) => sum + v, 0);
+            setStats({
+              totalChecks: normalizedHistory.length,
+              avgResponseTime: Math.round(total / values.length),
+              maxResponseTime: Math.max(...values),
+              minResponseTime: Math.min(...values),
+              availability: 98.7, // TODO: 从后端获取
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('加载历史数据失败:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Filter alerts
-  const filteredAlerts = mockAlerts.filter((alert) => {
+  const filteredAlerts = alerts.filter((alert) => {
     if (selectedTask !== 'all' && alert.taskId !== selectedTask) {
       return false;
     }
     return true;
   });
 
-  // Generate sample response time data
-  const responseTimeData = generateResponseTimeData();
-
-  // Calculate statistics
-  const stats = {
-    totalChecks: 13452,
-    avgResponseTime: 287,
-    maxResponseTime: 1250,
-    minResponseTime: 8,
-    availability: 98.7,
+  // 告警级别映射
+  const alertLevelMap: Record<AlertLevel, string> = {
+    critical: '严重',
+    warning: '警告',
+    info: '提示',
   };
 
-  // Export data functionality
+  // UTF-8 BOM 头，用于解决 Excel 打开 CSV 乱码问题
+  const UTF8_BOM = '\uFEFF';
+
+  // 导出数据功能
   const exportData = (format: 'csv' | 'json') => {
     let data: string;
     let filename: string;
@@ -65,41 +144,48 @@ export default function HistoryPage() {
 
     if (activeTab === 'alerts') {
       const exportData = filteredAlerts.map(a => ({
-        时间: new Date(a.timestamp).toLocaleString('zh-CN'),
-        任务: a.taskName,
-        级别: a.level === 'critical' ? '严重' : a.level === 'warning' ? '警告' : '提示',
-        消息: a.message,
-        状态: a.acknowledged ? '已确认' : '未确认'
+        '告警时间': new Date(a.createdAt).toLocaleString('zh-CN'),
+        '任务名称': a.taskName || '',
+        '告警级别': alertLevelMap[a.level as AlertLevel] || a.level,
+        '告警消息': a.message || '',
+        '响应时间(ms)': a.responseTime || '',
+        '状态码': a.statusCode || '',
+        '触发规则': a.ruleName || '',
+        '确认状态': a.acknowledged ? '已确认' : '未确认',
       }));
 
       if (format === 'csv') {
         const headers = Object.keys(exportData[0] || {}).join(',');
-        const rows = exportData.map(row => Object.values(row).map(v => `"${v}"`).join(','));
-        data = [headers, ...rows].join('\n');
-        filename = `alerts-${dateRange}.csv`;
-        mimeType = 'text/csv';
+        const rows = exportData.map(row =>
+          Object.values(row).map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(',')
+        );
+        data = UTF8_BOM + [headers, ...rows].join('\n');
+        filename = `alerts-${dateRange}-${Date.now()}.csv`;
+        mimeType = 'text/csv;charset=utf-8';
       } else {
         data = JSON.stringify(exportData, null, 2);
-        filename = `alerts-${dateRange}.json`;
-        mimeType = 'application/json';
+        filename = `alerts-${dateRange}-${Date.now()}.json`;
+        mimeType = 'application/json;charset=utf-8';
       }
     } else {
       const exportData = responseTimeData.map(d => ({
-        时间: d.time,
-        响应时间_ms: d.responseTime,
-        状态: d.status === 'normal' ? '正常' : d.status === 'slow' ? '缓慢' : '异常'
+        '时间': d.time,
+        '响应时间(ms)': d.responseTime,
+        '状态': d.status === 'normal' ? '正常' : d.status === 'slow' ? '缓慢' : '异常',
       }));
 
       if (format === 'csv') {
         const headers = Object.keys(exportData[0] || {}).join(',');
-        const rows = exportData.map(row => Object.values(row).join(','));
-        data = [headers, ...rows].join('\n');
-        filename = `response-time-${dateRange}.csv`;
-        mimeType = 'text/csv';
+        const rows = exportData.map(row =>
+          Object.values(row).map(v => `"${String(v || '').replace(/"/g, '""')}`).join(',')
+        );
+        data = UTF8_BOM + [headers, ...rows].join('\n');
+        filename = `response-time-${dateRange}-${Date.now()}.csv`;
+        mimeType = 'text/csv;charset=utf-8';
       } else {
         data = JSON.stringify(exportData, null, 2);
-        filename = `response-time-${dateRange}.json`;
-        mimeType = 'application/json';
+        filename = `response-time-${dateRange}-${Date.now()}.json`;
+        mimeType = 'application/json;charset=utf-8';
       }
     }
 
@@ -117,8 +203,18 @@ export default function HistoryPage() {
   };
 
   // Auto-open export menu if triggered from header
-  if (shouldExport && !showExportMenu) {
-    setShowExportMenu(true);
+  useEffect(() => {
+    if (shouldExport && !showExportMenu) {
+      setShowExportMenu(true);
+    }
+  }, [shouldExport]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 text-[#2B5D3A] animate-spin" />
+      </div>
+    );
   }
 
   return (
@@ -189,7 +285,7 @@ export default function HistoryPage() {
               className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2B5D3A]/30"
             >
               <option value="all">所有任务</option>
-              {mockTasks.map((task) => (
+              {tasks.map((task) => (
                 <option key={task.id} value={task.id}>
                   {task.name}
                 </option>
@@ -239,7 +335,7 @@ export default function HistoryPage() {
               label="平均响应时间"
               value={`${stats.avgResponseTime}ms`}
               icon={<Clock className="w-5 h-5" />}
-              trend="up"
+              trend={stats.avgResponseTime > 500 ? 'up' : undefined}
             />
             <StatCard
               label="最快响应"
@@ -268,40 +364,46 @@ export default function HistoryPage() {
               </div>
             </div>
             <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={responseTimeData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis
-                    dataKey="time"
-                    tick={{ fontSize: 12, fill: '#6B7280' }}
-                    tickLine={false}
-                    axisLine={{ stroke: '#E5E7EB' }}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 12, fill: '#6B7280' }}
-                    tickLine={false}
-                    axisLine={{ stroke: '#E5E7EB' }}
-                    unit="ms"
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#fff',
-                      border: '1px solid #E5E7EB',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                    }}
-                    formatter={(value: number) => [`${value}ms`, '响应时间']}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#2B5D3A"
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 6, fill: '#2B5D3A' }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              {responseTimeData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={responseTimeData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                    <XAxis
+                      dataKey="time"
+                      tick={{ fontSize: 12, fill: '#6B7280' }}
+                      tickLine={false}
+                      axisLine={{ stroke: '#E5E7EB' }}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 12, fill: '#6B7280' }}
+                      tickLine={false}
+                      axisLine={{ stroke: '#E5E7EB' }}
+                      unit="ms"
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#fff',
+                        border: '1px solid #E5E7EB',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      }}
+                      formatter={(value: number) => [`${value}ms`, '响应时间']}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      stroke="#2B5D3A"
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 6, fill: '#2B5D3A' }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  暂无响应时间数据
+                </div>
+              )}
             </div>
           </div>
 
@@ -372,7 +474,21 @@ export default function HistoryPage() {
             </div>
             <div className="divide-y divide-gray-100">
               {filteredAlerts.map((alert) => (
-                <AlertItem key={alert.id} alert={alert} />
+                <AlertItem
+                  key={alert.id}
+                  alert={alert}
+                  alertLevelMap={alertLevelMap}
+                  onAcknowledge={async (id) => {
+                    try {
+                      await alertsApi.acknowledge(id);
+                      setAlerts(prev => prev.map(a =>
+                        a.id === id ? { ...a, acknowledged: true } : a
+                      ));
+                    } catch (error) {
+                      console.error('确认告警失败:', error);
+                    }
+                  }}
+                />
               ))}
             </div>
             {filteredAlerts.length === 0 && (
@@ -420,7 +536,13 @@ function StatCard({ label, value, icon, trend }: StatCardProps) {
 }
 
 // Alert Item Component
-function AlertItem({ alert }: { alert: Alert }) {
+interface AlertItemProps {
+  alert: any;
+  alertLevelMap: Record<AlertLevel, string>;
+  onAcknowledge: (id: string) => void;
+}
+
+function AlertItem({ alert, alertLevelMap, onAcknowledge }: AlertItemProps) {
   const levelConfig = {
     critical: {
       bg: 'bg-red-500',
@@ -442,7 +564,7 @@ function AlertItem({ alert }: { alert: Alert }) {
     },
   };
 
-  const config = levelConfig[alert.level];
+  const config = levelConfig[alert.level as keyof typeof levelConfig] || levelConfig.info;
 
   return (
     <div className="px-6 py-4 hover:bg-gray-50 transition-colors">
@@ -454,8 +576,13 @@ function AlertItem({ alert }: { alert: Alert }) {
             <span
               className={`text-xs px-2 py-0.5 rounded-full ${config.bgLight} ${config.text}`}
             >
-              {alertLevelMap[alert.level]}
+              {alertLevelMap[alert.level as AlertLevel] || alert.level}
             </span>
+            {alert.ruleName && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                {alert.ruleName}
+              </span>
+            )}
             {alert.acknowledged && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
                 已确认
@@ -474,7 +601,10 @@ function AlertItem({ alert }: { alert: Alert }) {
           </div>
         </div>
         {!alert.acknowledged && (
-          <button className="px-3 py-1.5 text-sm text-[#2B5D3A] border border-[#2B5D3A] rounded-lg hover:bg-[#2B5D3A]/5 transition-colors">
+          <button
+            onClick={() => onAcknowledge(alert.id)}
+            className="px-3 py-1.5 text-sm text-[#2B5D3A] border border-[#2B5D3A] rounded-lg hover:bg-[#2B5D3A]/5 transition-colors"
+          >
             确认
           </button>
         )}

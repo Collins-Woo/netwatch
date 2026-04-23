@@ -118,38 +118,14 @@ export const statusApi = {
 
 // History API
 export const historyApi = {
-  getResponseTime: (params?: { task_id?: string; start_date?: string; end_date?: string; interval?: string }) => {
+  getResponseTime: (params?: { task_id?: string; limit?: number }) => {
     const searchParams = new URLSearchParams();
-    if (params?.task_id) searchParams.append('task_id', params.task_id);
-    if (params?.start_date) searchParams.append('start_date', params.start_date);
-    if (params?.end_date) searchParams.append('end_date', params.end_date);
-    if (params?.interval) searchParams.append('interval', params.interval);
+    if (params?.task_id) searchParams.append('taskId', params.task_id);
+    if (params?.limit) searchParams.append('limit', String(params.limit));
 
     const query = searchParams.toString();
-    return fetchApi(`/history/response-time${query ? `?${query}` : ''}`);
+    return fetchApi(`/history${query ? `?${query}` : ''}`);
   },
-
-  getAvailability: (params?: { task_id?: string; period?: string }) => {
-    const searchParams = new URLSearchParams();
-    if (params?.task_id) searchParams.append('task_id', params.task_id);
-    if (params?.period) searchParams.append('period', params.period);
-
-    const query = searchParams.toString();
-    return fetchApi(`/history/availability${query ? `?${query}` : ''}`);
-  },
-
-  getAlerts: (params?: { task_id?: string; start_date?: string; end_date?: string; period?: string }) => {
-    const searchParams = new URLSearchParams();
-    if (params?.task_id) searchParams.append('task_id', params.task_id);
-    if (params?.start_date) searchParams.append('start_date', params.start_date);
-    if (params?.end_date) searchParams.append('end_date', params.end_date);
-    if (params?.period) searchParams.append('period', params.period);
-
-    const query = searchParams.toString();
-    return fetchApi(`/history/alerts${query ? `?${query}` : ''}`);
-  },
-
-  getStats: (period: string = '24h') => fetchApi(`/history/stats?period=${period}`),
 };
 
 // Dashboard API
