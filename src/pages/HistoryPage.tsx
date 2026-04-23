@@ -88,7 +88,18 @@ export default function HistoryPage() {
       if (tasksRes && tasksRes.length > 0) {
         const taskId = selectedTask !== 'all' ? selectedTask : tasksRes[0]?.id;
         if (taskId) {
-          const historyRes = await historyApi.getResponseTime({ task_id: taskId }).catch(() => []);
+          // 根据时间范围设置不同的limit
+          const rangeLimits: Record<string, number> = {
+            '24h': 144,   // 每5分钟一个点，24小时 = 288个点
+            '7d': 1008,   // 7天 = 2016个点
+            '30d': 4320,  // 30天
+            '90d': 12960, // 90天
+          };
+          const historyRes = await historyApi.getResponseTime({
+            taskId: taskId,
+            limit: rangeLimits[dateRange] || 100,
+            range: dateRange
+          }).catch(() => []);
           const normalizedHistory = (historyRes || []).map((h: any) => ({
             time: new Date(h.recorded_at).toLocaleString('zh-CN'),
             value: h.response_time,

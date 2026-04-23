@@ -344,14 +344,35 @@ app.get('/api/status', (req, res) => {
   }
 });
 
-// 历史数据
+// 历史数据（支持时间范围过滤）
 app.get('/api/history', (req, res) => {
   try {
-    const { taskId, limit } = req.query;
+    const { taskId, limit, range } = req.query;
     if (!taskId) {
       return res.status(400).json({ error: '缺少taskId参数' });
     }
-    const history = jsonDb.getHistory(taskId, parseInt(limit) || 100);
+
+    // 计算时间范围
+    let startTime = null;
+    if (range) {
+      const now = new Date();
+      switch (range) {
+        case '24h':
+          startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case '7d':
+          startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case '30d':
+          startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case '90d':
+          startTime = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          break;
+      }
+    }
+
+    const history = jsonDb.getHistory(taskId, parseInt(limit) || 100, startTime);
     res.json(history);
   } catch (error) {
     res.status(500).json({ error: '获取历史数据失败' });

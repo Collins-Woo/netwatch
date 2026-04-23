@@ -118,10 +118,11 @@ export const statusApi = {
 
 // History API
 export const historyApi = {
-  getResponseTime: (params?: { task_id?: string; limit?: number }) => {
+  getResponseTime: (params?: { taskId?: string; limit?: number; range?: string }) => {
     const searchParams = new URLSearchParams();
-    if (params?.task_id) searchParams.append('taskId', params.task_id);
+    if (params?.taskId) searchParams.append('taskId', params.taskId);
     if (params?.limit) searchParams.append('limit', String(params.limit));
+    if (params?.range) searchParams.append('range', params.range);
 
     const query = searchParams.toString();
     return fetchApi(`/history${query ? `?${query}` : ''}`);

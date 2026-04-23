@@ -665,9 +665,15 @@ acknowledgeAlert(id) {
     }
   }
 
-  getHistory(taskId, limit = 100) {
+  getHistory(taskId, limit = 100, startTime = null) {
     const history = readJSON('history');
     let filtered = history.filter(h => h.task_id === taskId);
+
+    // 如果指定了开始时间，则过滤
+    if (startTime) {
+      filtered = filtered.filter(h => new Date(h.recorded_at) >= startTime);
+    }
+
     return filtered.slice(-limit).sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
   }
 
